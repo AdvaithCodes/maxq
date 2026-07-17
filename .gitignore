@@ -1,0 +1,14 @@
+# Godot
+.godot/
+*.import
+export_presets.cfg
+
+# macOS
+.DS_Store
+
+# Claude Code local settings (per-machine)
+.claude/settings.local.json
+
+# Builds
+build/
+export/
