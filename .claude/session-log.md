@@ -28,9 +28,12 @@ Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good.
 - Created `docs/plan.md`, this file, `.claude/learnings.md`.
 
 ## Next steps
-1. Owner playtests Phase 1 map view (root project) on the M4; feedback loop.
-2. Toward M1 (v0.1 tag): polish node editing (drag handles later), consider
-   auto warp-down approaching nodes/SOI, closest-approach markers.
+0. CONFIRMED 2026-07-17: owner flew a maneuver-node transfer to a Cinder
+   encounter in the map view — Phase 1 core loop works end-to-end.
+1. M1 QoL polish DONE (2026-07-17): auto warp-limit near events, warp-to-node
+   (Z), node time adjust (Y/H), closest-approach markers + HUD readout.
+2. Owner to fly full M1 mission (transfer -> Cinder capture -> return); then
+   tag v0.1.
 3. Phase 2 (VAB + physics flight) after M1. ADR to write then: welded vessel
    assemblies (from S3 finding).
 4. Dell run of spikes still pending (reduced-preset check, not a gate anymore).

@@ -13,6 +13,7 @@ func _initialize() -> void:
 	_test_vessel_stable_orbit()
 	_test_node_execution()
 	_test_transfer_to_moon()
+	_test_closest_approach()
 
 	if _failures == 0:
 		print("\nALL TESTS PASSED")
@@ -132,14 +133,42 @@ func _test_transfer_to_moon() -> void:
 	var v0 := DVec3.new(-vp * s, 0.0, vp * c)
 	ves.set_state(r0, v0)
 
-	var predicted := Trajectory.predict(ves.parent, ves.r, ves.v, ves.t)
+	var predicted: Dictionary = Trajectory.predict(ves.parent, ves.r, ves.v, ves.t)
 	var enters_moon := false
-	for patch: Dictionary in predicted:
+	for patch: Dictionary in predicted["patches"]:
 		if patch["parent"] == cinder:
 			enters_moon = true
 	_check(enters_moon, "prediction shows Cinder encounter",
-			"(%d patches)" % predicted.size())
+			"(%d patches)" % predicted["patches"].size())
 
 	ves.advance(transfer_time * 1.05)
 	_check(ves.parent == cinder, "vessel actually entered Cinder SOI",
 			"(parent: %s, switches: %d)" % [ves.parent.body_name, ves.soi_switch_count])
+
+
+## A trajectory that gets near the moon without entering its SOI must report
+## a closest approach instead of an encounter.
+func _test_closest_approach() -> void:
+	print("\n[closest approach reported on a near-miss]")
+	var u := _load()
+	var veridia: CelestialBody = u.by_name["Veridia"]
+	var cinder: CelestialBody = u.by_name["Cinder"]
+	var ves := Vessel.new(u, veridia)
+
+	# Apoapsis short of the moon's orbit by ~2x its SOI: near miss, no entry.
+	var rp := 700_000.0
+	var ra: float = cinder.orbit.a - cinder.soi * 2.0
+	var a := (rp + ra) / 2.0
+	var vp := sqrt(veridia.mu * (2.0 / rp - 1.0 / a))
+	ves.set_state(DVec3.new(rp, 0.0, 0.0), DVec3.new(0.0, 0.0, vp))
+
+	var predicted: Dictionary = Trajectory.predict(ves.parent, ves.r, ves.v, ves.t)
+	_check(predicted["patches"].size() == 1, "no encounter patches",
+			"(%d)" % predicted["patches"].size())
+	var found := false
+	for ap: Dictionary in predicted["approaches"]:
+		if ap["body"] == cinder:
+			found = true
+			_check(ap["dist"] > cinder.soi and ap["dist"] < cinder.soi * 12.0,
+					"approach distance plausible", "(%.0f km)" % (ap["dist"] / 1000.0))
+	_check(found, "Cinder closest approach reported")

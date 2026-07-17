@@ -19,6 +19,7 @@ var _body_orbit_pts := {}     # body -> Array[DVec3] (parent-relative)
 var _vessel_mesh: MeshInstance3D
 var _lines_mesh: ImmediateMesh
 var _node_markers: Array[MeshInstance3D] = []
+var _ca_markers: Array[MeshInstance3D] = []  # closest-approach markers
 
 
 func setup(p_universe: Universe) -> void:
@@ -67,8 +68,20 @@ func setup(p_universe: Universe) -> void:
 		add_child(nm)
 		_node_markers.append(nm)
 
+	for i in 3:
+		var cm := MeshInstance3D.new()
+		cm.mesh = sphere
+		var cmat := StandardMaterial3D.new()
+		cmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cmat.albedo_color = Color(1.0, 0.55, 0.55)
+		cm.material_override = cmat
+		cm.visible = false
+		add_child(cm)
+		_ca_markers.append(cm)
 
-func update_view(t: float, focus: DVec3, vessel: Vessel, patches: Array, cam_dist: float) -> void:
+
+func update_view(t: float, focus: DVec3, vessel: Vessel, patches: Array,
+		approaches: Array, cam_dist: float) -> void:
 	# Body markers: true size, but never smaller than a visible dot.
 	for body: CelestialBody in universe.bodies:
 		var mi: MeshInstance3D = _body_meshes[body]
@@ -100,6 +113,18 @@ func update_view(t: float, focus: DVec3, vessel: Vessel, patches: Array, cam_dis
 				marker_i += 1
 	for i in range(marker_i, _node_markers.size()):
 		_node_markers[i].visible = false
+
+	# Closest-approach markers (vessel position at the moment of nearest pass).
+	for i in _ca_markers.size():
+		var cm := _ca_markers[i]
+		if i < approaches.size():
+			var ap: Dictionary = approaches[i]
+			var parent_wp: DVec3 = (ap["parent"] as CelestialBody).world_pos_at(t)
+			cm.visible = true
+			cm.position = parent_wp.add(ap["pos"]).sub(focus).mul(MAP_SCALE).to_v3()
+			cm.scale = Vector3.ONE * (cam_dist * 0.011)
+		else:
+			cm.visible = false
 
 
 func _draw_line(pts: Array, parent_wp: DVec3, focus: DVec3, color: Color, closed: bool) -> void:

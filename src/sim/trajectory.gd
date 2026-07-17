@@ -13,13 +13,17 @@ const SAMPLES_PER_PATCH := 220
 const HYPERBOLIC_HORIZON := 4.0e6  # s of sampling for escape trajectories
 
 
-## Returns Array of patches:
-##   { parent: CelestialBody, pts: Array[DVec3], markers: Array[DVec3],
-##     t_start: float, t_end: float }
-## markers = node positions that occur within the patch (parent-relative).
+## Returns { "patches": Array, "approaches": Array }.
+## Each patch: { parent: CelestialBody, pts: Array[DVec3], markers: Array[DVec3],
+##   t_start: float, t_end: float } — markers are node positions in the patch
+##   (parent-relative).
+## Each approach: { body, dist, t, pos: DVec3 (patch-parent-relative), parent }
+##   = closest approach to a body we pass near but do NOT encounter, sorted
+##   nearest-first.
 static func predict(parent: CelestialBody, r0: DVec3, v0: DVec3, t0: float,
-		nodes: Array = []) -> Array:
+		nodes: Array = []) -> Dictionary:
 	var patches: Array = []
+	var approaches := {}  # body -> approach dict
 	var p := parent
 	var er := r0.copy()
 	var ev := v0.copy()
@@ -69,6 +73,17 @@ static func predict(parent: CelestialBody, r0: DVec3, v0: DVec3, t0: float,
 
 			patch["pts"].append(cr)
 
+			# Track closest approaches to the parent's children.
+			for child: CelestialBody in p.children:
+				var d: float = cr.sub(child.local_pos_at(t)).length()
+				if d < child.soi * 12.0:
+					var best: Dictionary = approaches.get(child, {})
+					if best.is_empty() or d < best["dist"]:
+						approaches[child] = {
+							"body": child, "dist": d, "t": t,
+							"pos": cr.copy(), "parent": p,
+						}
+
 			var chk := Vessel.soi_check(p, cr, cv, t)
 			if chk[3]:
 				p = chk[0]
@@ -82,7 +97,14 @@ static func predict(parent: CelestialBody, r0: DVec3, v0: DVec3, t0: float,
 		patches.append(patch)
 		if not switched:
 			break
-	return patches
+
+	# A body we actually enter the SOI of is an encounter, not an "approach".
+	for patch: Dictionary in patches:
+		approaches.erase(patch["parent"])
+	var approach_list: Array = approaches.values()
+	approach_list.sort_custom(func(x: Dictionary, y: Dictionary) -> bool:
+		return x["dist"] < y["dist"])
+	return {"patches": patches, "approaches": approach_list}
 
 
 ## How long to sample a conic in this patch: one period for closed orbits,
