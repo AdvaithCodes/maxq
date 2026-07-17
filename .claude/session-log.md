@@ -6,7 +6,8 @@ All foundational decisions made and recorded in `docs/adr.md`:
   double-precision orbital math; GDScript with C#/GDExtension hot paths.
 - ADR-002: full-3D KSP-like scope, phased roadmap (plan §5).
 - ADR-003: stylized low-poly art + rich lighting/atmosphere shaders.
-No code written yet. Git repo initialized (main branch) with docs + README.
+No code written yet. Public repo: https://github.com/AdvaithCodes/maxq
+(working title "Max-Q"; local folder is still ~/code/rockets).
 Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good."
 
 ## Last completed (2026-07-16)
