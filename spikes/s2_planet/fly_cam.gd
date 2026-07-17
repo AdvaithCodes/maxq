@@ -18,6 +18,14 @@ func _ready() -> void:
 	position = Vector3.ZERO
 
 
+## Altitude-scaled near/far: without this, the depth buffer (especially on the
+## Compatibility renderer, which has no reversed-Z) z-fights at distance and
+## produces black speckle artifacts on the terrain.
+func update_planes(altitude: float) -> void:
+	near = clampf(absf(altitude) * 0.01, 0.5, 4000.0)
+	far = clampf(absf(altitude) * 60.0, 60_000.0, 3.0e6)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed:
 		if event.button_index == MOUSE_BUTTON_LEFT:

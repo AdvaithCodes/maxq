@@ -49,6 +49,7 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	var altitude := cam.dpos.length() - PlanetLOD.RADIUS
 	cam.fly(delta, altitude)
+	cam.update_planes(altitude)
 	# Skip the LOD pass when the camera barely moved and nothing is pending.
 	var moved: float = cam.dpos.sub(_last_lod_pos).length()
 	if moved > maxf(1.0, absf(altitude) * 0.001) or planet.has_pending_work():

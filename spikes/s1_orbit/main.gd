@@ -6,11 +6,15 @@
 ##    the world (600 km planet, moon) is positioned relative to it. This is the
 ##    jitter test: at any warp, the vessel must stay rock-steady on screen.
 ##
-## Controls:  , / .  = time warp down/up   V = view mode   R = reset   Esc = quit
+## Controls:  , / .  = warp down/up   V = view   +/- = map zoom   R = reset   Esc = quit
 extends Node3D
 
 const MAP_SCALE := 1.0e-5  # 1 render unit = 100 km in map view
 const WARP_LEVELS: Array[float] = [1.0, 10.0, 100.0, 1000.0, 10_000.0, 100_000.0]
+## Vessel view draws distant bodies "scaled space" style: at most this many
+## meters away, shrunk to preserve angular size. Keeps the far plane sane
+## (a multi-million-unit far plane breaks the light culler / depth precision).
+const SCALED_DIST := 30_000.0
 
 const MU_PLANET := 3.5316e12
 const R_PLANET := 600_000.0
@@ -23,6 +27,7 @@ var planet: CelestialBody
 var moon: CelestialBody
 var warp_idx := 0
 var map_view := true
+var map_zoom := 400.0
 
 var _cam: Camera3D
 var _planet_mesh: MeshInstance3D
@@ -43,11 +48,11 @@ func _ready() -> void:
 	_reset_vessel()
 
 	_cam = Camera3D.new()
-	_cam.far = 4.0e6
 	add_child(_cam)
 
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-35.0, 40.0, 0.0)
+	# Mostly top-down so the map view (looking down -Y) is fully lit.
+	sun.rotation_degrees = Vector3(-70.0, 30.0, 0.0)
 	add_child(sun)
 
 	var env := WorldEnvironment.new()
@@ -55,7 +60,7 @@ func _ready() -> void:
 	e.background_mode = Environment.BG_COLOR
 	e.background_color = Color(0.02, 0.02, 0.04)
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.25, 0.25, 0.3)
+	e.ambient_light_color = Color(0.45, 0.45, 0.5)
 	env.environment = e
 	add_child(env)
 
@@ -113,6 +118,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_V:
 				map_view = not map_view
 				_trail_points.clear()
+			KEY_EQUAL, KEY_KP_ADD:
+				map_zoom = maxf(map_zoom * 0.75, 30.0)
+			KEY_MINUS, KEY_KP_SUBTRACT:
+				map_zoom = minf(map_zoom * 1.333, 4000.0)
 			KEY_R:
 				_reset_vessel()
 			KEY_ESCAPE:
@@ -140,27 +149,40 @@ func _update_visuals() -> void:
 	var moon_wp: DVec3 = moon.pos_at(sim.t)
 
 	if map_view:
-		# Scaled top-down view centered on the planet.
+		# Scaled top-down view centered on the planet. Markers get a minimum
+		# on-screen size so nothing vanishes when zoomed out.
+		_cam.near = 1.0
+		_cam.far = 10_000.0
 		_planet_mesh.position = Vector3.ZERO
-		_planet_mesh.scale = Vector3.ONE * (R_PLANET * MAP_SCALE * 2.0)
+		_planet_mesh.scale = Vector3.ONE * maxf(R_PLANET * MAP_SCALE * 2.0, map_zoom * 0.03)
 		_moon_mesh.position = moon_wp.mul(MAP_SCALE).to_v3()
-		_moon_mesh.scale = Vector3.ONE * (R_MOON * MAP_SCALE * 2.0)
+		_moon_mesh.scale = Vector3.ONE * maxf(R_MOON * MAP_SCALE * 2.0, map_zoom * 0.018)
 		_vessel_mesh.position = vessel_wp.mul(MAP_SCALE).to_v3()
-		_vessel_mesh.scale = Vector3.ONE * 3.0  # exaggerated marker
-		_cam.look_at_from_position(Vector3(0, 300, 0), Vector3.ZERO, Vector3(0, 0, -1))
+		_vessel_mesh.scale = Vector3.ONE * maxf(1.0, map_zoom * 0.012)
+		_cam.look_at_from_position(Vector3(0, map_zoom, 0), Vector3.ZERO, Vector3(0, 0, -1))
 		_trail_mesh.visible = true
 		_rebuild_trail()
 	else:
 		# 1:1 floating origin: vessel pinned at (0,0,0), world moves around it.
 		# Subtraction happens in doubles; only the small result touches floats.
-		_planet_mesh.position = DVec3.new().sub(vessel_wp).to_v3()
-		_planet_mesh.scale = Vector3.ONE * (R_PLANET * 2.0)
-		_moon_mesh.position = moon_wp.sub(vessel_wp).to_v3()
-		_moon_mesh.scale = Vector3.ONE * (R_MOON * 2.0)
+		# Distant bodies use scaled space: drawn nearer and smaller at the same
+		# angular size, so the camera far plane stays small.
+		_cam.near = 0.1
+		_cam.far = SCALED_DIST * 4.0
+		_place_scaled(_planet_mesh, DVec3.new().sub(vessel_wp), R_PLANET)
+		_place_scaled(_moon_mesh, moon_wp.sub(vessel_wp), R_MOON)
 		_vessel_mesh.position = Vector3.ZERO
 		_vessel_mesh.scale = Vector3.ONE * 2.0  # a 2 m ball
 		_cam.look_at_from_position(Vector3(4, 3, 10), Vector3.ZERO, Vector3.UP)
 		_trail_mesh.visible = false
+
+
+## Position a body mesh in vessel view using scaled-space compression.
+func _place_scaled(mi: MeshInstance3D, rel: DVec3, radius: float) -> void:
+	var d := rel.length()
+	var k := minf(1.0, SCALED_DIST / maxf(d, 1.0))
+	mi.position = rel.mul(k).to_v3()
+	mi.scale = Vector3.ONE * (radius * 2.0 * k)
 
 
 func _rebuild_trail() -> void:
@@ -176,7 +198,7 @@ func _rebuild_trail() -> void:
 func _update_hud(warp: float) -> void:
 	var days := sim.t / 86400.0
 	_hud.text = "MaxQ Spike S1 — orbit + floating origin
-t = %.2f days   warp = %.0fx   [,/.] warp  [V] view  [R] reset
+t = %.2f days   warp = %.0fx   [,/.] warp  [V] view  [+/-] map zoom  [R] reset
 view: %s
 SOI: %s   altitude: %.1f km   SOI switches: %d
 orbital energy: %.1f J/kg   handoff jump max: %s m

@@ -16,6 +16,10 @@ requires solar-system scale, two physics regimes, and streamed planet terrain â€
   everything else on-rails patched conics.
 - Renderer: Forward+ on Apple Silicon; **Compatibility (GL) path kept working always**
   (min-spec = Dell Inspiron iGPU).
+  *Amended 2026-07-17 (owner decision):* quality is tuned for the M4 first
+  (Forward+/Metal is the primary target); the Intel machines get a reduced
+  graphics preset on the Compatibility renderer. "Runs on the Dell" is still
+  required â€” "looks identical on the Dell" is not.
 - Language: **GDScript** for game logic; C# or GDExtension (C++) only for hot paths
   that profiling identifies (orbit batch propagation, terrain meshing).
 

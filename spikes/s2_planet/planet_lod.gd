@@ -206,38 +206,45 @@ func _build_chunk(key: String, desc: Array) -> void:
 	var u0 := -1.0 + 2.0 * float(ix) / n
 	var v0 := -1.0 + 2.0 * float(iy) / n
 	var side := GRID + 1
+	var eside := side + 2  # extended grid with a one-vertex ghost ring
 
-	# Positions (relative to chunk center) and heights, built in doubles.
+	# Extended positions grid (ghost ring included) built in doubles, so edge
+	# normals use centered differences that MATCH the neighboring chunk —
+	# one-sided edge normals cause visible lighting seams between chunks.
+	var epos := PackedVector3Array()
+	epos.resize(eside * eside)
+	var eheights := PackedFloat64Array()
+	eheights.resize(eside * eside)
+	for gy in eside:
+		for gx in eside:
+			var dir := _dir(face, u0 + step * (gx - 1), v0 + step * (gy - 1))
+			var h := height_at(dir)
+			var i := gy * eside + gx
+			epos[i] = dir.mul(RADIUS + h).sub(center).to_v3()
+			eheights[i] = _raw_height(dir)
+
 	var verts := PackedVector3Array()
 	var colors := PackedColorArray()
 	var dirs := PackedVector3Array()  # unit dirs (float ok: only guides skirts)
+	var normals := PackedVector3Array()
 	verts.resize(side * side)
 	colors.resize(side * side)
 	dirs.resize(side * side)
-	var heights := PackedFloat64Array()
-	heights.resize(side * side)
-
-	for gy in side:
-		for gx in side:
-			var dir := _dir(face, u0 + step * gx, v0 + step * gy)
-			var h := height_at(dir)
-			var p := dir.mul(RADIUS + h).sub(center)
-			var i := gy * side + gx
-			verts[i] = p.to_v3()
-			dirs[i] = dir.to_v3()
-			heights[i] = _raw_height(dir)
-			colors[i] = _height_color(heights[i])
-
-	# Normals from grid neighbors (one-sided at edges) — no extra sampling.
-	var normals := PackedVector3Array()
 	normals.resize(side * side)
+
 	for gy in side:
 		for gx in side:
 			var i := gy * side + gx
-			var xa := verts[gy * side + maxi(gx - 1, 0)]
-			var xb := verts[gy * side + mini(gx + 1, GRID)]
-			var ya := verts[maxi(gy - 1, 0) * side + gx]
-			var yb := verts[mini(gy + 1, GRID) * side + gx]
+			var ei := (gy + 1) * eside + (gx + 1)
+			verts[i] = epos[ei]
+			colors[i] = _height_color(eheights[ei])
+			var dir := _dir(face, u0 + step * gx, v0 + step * gy)
+			dirs[i] = dir.to_v3()
+			# Centered differences from the extended grid.
+			var xa := epos[(gy + 1) * eside + gx]
+			var xb := epos[(gy + 1) * eside + (gx + 2)]
+			var ya := epos[gy * eside + (gx + 1)]
+			var yb := epos[(gy + 2) * eside + (gx + 1)]
 			var nrm := (xb - xa).cross(yb - ya).normalized()
 			if nrm.dot(dirs[i]) < 0.0:
 				nrm = -nrm
@@ -302,13 +309,25 @@ static func _add_skirt_quad(indices: PackedInt32Array, skirt_index: Dictionary, 
 	indices.append_array(PackedInt32Array([e0, e1, s0, e1, s1, s0]))
 
 
+# Smooth height->color ramp. Hard band edges read as posterized/pixelated
+# blotches at coarse LOD, so every transition is a smoothstep blend.
+const _RAMP: Array = [
+	[-4000.0, Color(0.04, 0.10, 0.32)],  # deep ocean
+	[-400.0, Color(0.08, 0.22, 0.50)],   # shallow ocean
+	[0.0, Color(0.12, 0.32, 0.58)],      # coast water
+	[60.0, Color(0.76, 0.72, 0.54)],     # beach
+	[500.0, Color(0.27, 0.47, 0.23)],    # lowland
+	[1500.0, Color(0.42, 0.42, 0.30)],   # highland
+	[2600.0, Color(0.50, 0.46, 0.43)],   # rock
+	[3400.0, Color(0.93, 0.93, 0.96)],   # snow
+]
+
+
 func _height_color(h: float) -> Color:
-	if h <= 0.0:
-		return Color(0.10, 0.25, 0.55).lerp(Color(0.05, 0.12, 0.35), clampf(-h / 2000.0, 0.0, 1.0))
-	elif h < 300.0:
-		return Color(0.80, 0.75, 0.55)  # beach
-	elif h < 1800.0:
-		return Color(0.25, 0.50, 0.22).lerp(Color(0.45, 0.42, 0.30), (h - 300.0) / 1500.0)
-	elif h < 3000.0:
-		return Color(0.48, 0.44, 0.40)
-	return Color(0.92, 0.92, 0.95)      # snow
+	if h <= _RAMP[0][0]:
+		return _RAMP[0][1]
+	for i in range(1, _RAMP.size()):
+		if h <= _RAMP[i][0]:
+			var t: float = (h - _RAMP[i - 1][0]) / (_RAMP[i][0] - _RAMP[i - 1][0])
+			return (_RAMP[i - 1][1] as Color).lerp(_RAMP[i][1], smoothstep(0.0, 1.0, t))
+	return _RAMP[-1][1]

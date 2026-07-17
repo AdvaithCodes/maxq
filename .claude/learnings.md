@@ -44,3 +44,22 @@ Gotchas and corrected assumptions. Read early each session; don't re-learn these
   LOD pass on camera movement.
 - **Godot 4 `.gitignore` must NOT ignore `*.import`** (that's Godot 3 advice);
   the sidecar `.import` files must be committed or imports break on clone.
+
+## From owner's visual test of the spikes (2026-07-17)
+
+- **Owner directive (supersedes "min-spec first-class" framing):** maximize
+  quality on the M4 (Forward+/Metal) within reasonable build effort, THEN scale
+  down to the Dell via graphics presets. Don't design visuals down to the iGPU.
+- **Extreme camera far/near ratios break Godot's light culler** — far=4e6 with
+  near=0.05 spams `create_frustum_points ... rendering_light_culler.cpp` errors
+  every frame. Fix: sane near/far per view + scaled-space rendering for distant
+  bodies (draw them closer & smaller at the same angular size) instead of a
+  multi-million-unit far plane.
+- **Depth precision causes black speckle artifacts on planet terrain at
+  distance** — the Compatibility renderer has NO reversed-Z (Forward+/Mobile
+  gained it in Godot 4.3). Use altitude-scaled dynamic near/far, and prefer
+  Forward+ on capable machines.
+- **Chunk-edge normals need a ghost ring** — computing normals from one-sided
+  differences at chunk borders makes lighting discontinuities (visible seams /
+  odd terminator). Sample one extra vertex beyond the chunk border so edge
+  normals use centered differences that match the neighbor chunk.
