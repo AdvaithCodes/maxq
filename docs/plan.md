@@ -97,6 +97,9 @@ Consequences:
 
 ## 5. Roadmap (phased, KSP2-lesson-compliant)
 
+> Summary only — the detailed plan (milestones, acceptance criteria, architecture
+> modules, perf budgets, risks, timeline) lives in **`docs/roadmap.md`**.
+
 - **Phase 0 — Feasibility spikes (throwaway code):**
   a) floating-origin + on-rails orbit demo (dot orbiting a planet, time warp, SOI switch);
   b) cube-sphere quadtree LOD planet you can fly from orbit to surface;

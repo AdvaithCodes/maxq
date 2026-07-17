@@ -12,7 +12,8 @@ on other bodies.
 
 ## Docs
 
-- [`docs/plan.md`](docs/plan.md) — vision, genre research, stack evaluation, roadmap
+- [`docs/plan.md`](docs/plan.md) — vision, genre research, stack evaluation
+- [`docs/roadmap.md`](docs/roadmap.md) — detailed development plan (phases, milestones, risks)
 - [`docs/adr.md`](docs/adr.md) — architecture decision records
 - `.claude/session-log.md` — session-to-session status
 - `.claude/learnings.md` — gotchas; read before assuming
