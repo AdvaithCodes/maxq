@@ -27,16 +27,27 @@ Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good.
 - Hardware strategy: M4 Air = primary dev; Intel MBP + Dell = min-spec test rigs.
 - Created `docs/plan.md`, this file, `.claude/learnings.md`.
 
-## Next steps
-0. CONFIRMED 2026-07-17: owner flew a maneuver-node transfer to a Cinder
-   encounter in the map view — Phase 1 core loop works end-to-end.
-1. M1 QoL polish DONE (2026-07-17): auto warp-limit near events, warp-to-node
-   (Z), node time adjust (Y/H), closest-approach markers + HUD readout.
-2. Owner to fly full M1 mission (transfer -> Cinder capture -> return); then
-   tag v0.1.
-3. Phase 2 (VAB + physics flight) after M1. ADR to write then: welded vessel
-   assemblies (from S3 finding).
-4. Dell run of spikes still pending (reduced-preset check, not a gate anymore).
+## Next steps (START HERE next session)
+Phase 2 in progress. Done so far: part catalog (data/parts.json, 9 parts),
+Craft data model (src/craft/) with staging/assembly split per ADR-004,
+delta-v + TWR analysis, save/load roundtrip — 14 tests in tests/test_craft.gd.
+
+Build order for the rest of Phase 2 (see docs/roadmap.md Phase 2):
+1. VAB scene (vab.tscn): part catalog list UI, click to stack parts, staging
+   list display, live dv/TWR readout (Craft.stage_deltav/launch_twr are done,
+   just call them). Save craft JSON to user://crafts/.
+2. FlightAssembly: Craft.assemblies() -> welded RigidBody3D per group
+   (compound cylinder shapes from part height/diameter, summed mass), joints
+   at decouplers, collision exceptions (pattern proven in spikes/s3_vessel).
+3. Launch scene: flat pad first (planet terrain comes Phase 3), gravity from
+   Veridia body data, engine thrust + fuel drain (isp from parts), staging
+   key, simple drag. Then: pack to rails when above atmosphere (reuse Vessel).
+4. Navball + flight HUD after that.
+
+## Milestones
+- v0.1 tagged 2026-07-17: M1 orbital core (owner flew Cinder encounter).
+
+Other pending: Dell run of spikes (reduced-preset check, informational).
 
 ## Phase 1 status (2026-07-17)
 Root project = orbital core, all 15 sim tests pass headless:

@@ -61,3 +61,22 @@ renderer.
 scenes stay coherent even while unfinished; the orbit money-shot depends on a
 one-time atmosphere-shader engineering effort (Phase 3); we accept less
 screenshot-realism than semi-real styles.
+
+## ADR-004: Vessels are welded stage assemblies, not per-part joint chains (2026-07-17)
+
+**Context.** Spike S3 measured that a 49-joint chain of rigid bodies buckles
+166-175 deg under thrust even with Jolt at 20 velocity / 8 position solver
+steps ("noodle rocket"). Welding 50 parts into 3 per-stage compound rigid
+bodies with joints only at the 2 decoupler interfaces passed all stability
+criteria (0.6 deg tilt, 1 ms/frame).
+
+**Decision.** A craft is a tree of parts (data model), but at flight time each
+rigidly-connected group ("assembly", bounded by decouplers/docking ports)
+becomes ONE RigidBody3D with compound collision shapes and summed mass
+properties. Joints exist only at functional separation interfaces. Adjacent
+assemblies get collision exceptions.
+
+**Consequences.** Rock-solid rockets at any part count and trivial physics
+cost; per-part flex/breakage is lost (acceptable — KSP's wobble was a bug
+players patched away with autostrut, not a feature). Part-level damage, if
+ever wanted, is modeled as game logic rather than joint physics.

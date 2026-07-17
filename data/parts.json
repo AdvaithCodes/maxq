@@ -1,0 +1,101 @@
+{
+  "comment": "Part catalog. Masses in kg, thrust in N, isp in seconds, sizes in m. attach_top/attach_bottom are stack node offsets from part center along +Y/-Y.",
+  "parts": [
+    {
+      "id": "pod_mk1",
+      "title": "Mk1 Command Pod",
+      "category": "command",
+      "dry_mass": 800.0,
+      "height": 1.6,
+      "diameter": 1.25,
+      "attach_top": 0.8,
+      "attach_bottom": -0.8,
+      "crew": 1
+    },
+    {
+      "id": "parachute_mk1",
+      "title": "Mk1 Parachute",
+      "category": "utility",
+      "dry_mass": 100.0,
+      "height": 0.5,
+      "diameter": 0.6,
+      "attach_bottom": -0.25,
+      "parachute": { "drag_area": 300.0, "deploy_altitude": 1500.0 }
+    },
+    {
+      "id": "tank_s",
+      "title": "FT-100 Fuel Tank",
+      "category": "fuel",
+      "dry_mass": 250.0,
+      "fuel": 2000.0,
+      "height": 1.0,
+      "diameter": 1.25,
+      "attach_top": 0.5,
+      "attach_bottom": -0.5
+    },
+    {
+      "id": "tank_m",
+      "title": "FT-200 Fuel Tank",
+      "category": "fuel",
+      "dry_mass": 500.0,
+      "fuel": 4000.0,
+      "height": 2.0,
+      "diameter": 1.25,
+      "attach_top": 1.0,
+      "attach_bottom": -1.0
+    },
+    {
+      "id": "tank_l",
+      "title": "FT-400 Fuel Tank",
+      "category": "fuel",
+      "dry_mass": 1000.0,
+      "fuel": 8000.0,
+      "height": 4.0,
+      "diameter": 1.25,
+      "attach_top": 2.0,
+      "attach_bottom": -2.0
+    },
+    {
+      "id": "engine_sparrow",
+      "title": "K-45 Sparrow Engine",
+      "category": "engine",
+      "dry_mass": 500.0,
+      "height": 1.2,
+      "diameter": 1.25,
+      "attach_top": 0.6,
+      "attach_bottom": -0.6,
+      "engine": { "thrust": 60000.0, "isp": 320.0, "gimbal_deg": 3.0 }
+    },
+    {
+      "id": "engine_kestrel",
+      "title": "K-90 Kestrel Engine",
+      "category": "engine",
+      "dry_mass": 1200.0,
+      "height": 1.8,
+      "diameter": 1.25,
+      "attach_top": 0.9,
+      "attach_bottom": -0.9,
+      "engine": { "thrust": 180000.0, "isp": 295.0, "gimbal_deg": 2.0 }
+    },
+    {
+      "id": "decoupler_s",
+      "title": "TD-12 Stack Decoupler",
+      "category": "structural",
+      "dry_mass": 50.0,
+      "height": 0.3,
+      "diameter": 1.25,
+      "attach_top": 0.15,
+      "attach_bottom": -0.15,
+      "decoupler": true
+    },
+    {
+      "id": "fin_basic",
+      "title": "Basic Fin",
+      "category": "aero",
+      "dry_mass": 30.0,
+      "height": 0.8,
+      "diameter": 0.2,
+      "radial": true
+    }
+  ]
+}
