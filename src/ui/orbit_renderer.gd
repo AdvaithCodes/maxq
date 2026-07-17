@@ -61,7 +61,7 @@ func setup(p_universe: Universe) -> void:
 		nm.mesh = sphere
 		var nmat := StandardMaterial3D.new()
 		nmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		nmat.albedo_color = Color(0.4, 0.6, 1.0)
+		nmat.albedo_color = Color(0.3, 0.65, 1.0)
 		nm.material_override = nmat
 		nm.visible = false
 		add_child(nm)
@@ -96,7 +96,7 @@ func update_view(t: float, focus: DVec3, vessel: Vessel, patches: Array, cam_dis
 				var nm := _node_markers[marker_i]
 				nm.visible = true
 				nm.position = parent_wp.add(m).sub(focus).mul(MAP_SCALE).to_v3()
-				nm.scale = Vector3.ONE * (cam_dist * 0.012)
+				nm.scale = Vector3.ONE * (cam_dist * 0.022)
 				marker_i += 1
 	for i in range(marker_i, _node_markers.size()):
 		_node_markers[i].visible = false

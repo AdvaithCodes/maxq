@@ -52,9 +52,20 @@ func _ready() -> void:
 
 	var canvas := CanvasLayer.new()
 	hud = Label.new()
-	hud.position = Vector2(12, 8)
-	hud.add_theme_font_size_override("font_size", 14)
+	hud.position = Vector2(14, 10)
+	hud.add_theme_font_size_override("font_size", 19)
 	canvas.add_child(hud)
+
+	var controls := Label.new()
+	controls.add_theme_font_size_override("font_size", 17)
+	controls.modulate = Color(1.0, 1.0, 1.0, 0.85)
+	controls.text = "[,/.] time warp    [Tab] focus    [N] add node    [X] delete node
+[U/J] prograde +/-    [I/K] normal +/-    [O/L] radial +/-    (Shift = 10x)
+mouse drag = rotate    wheel = zoom    [Esc] quit"
+	controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
+	controls.position = Vector2(14, -110)
+	controls.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	canvas.add_child(controls)
 	add_child(canvas)
 
 	_focus_list = [null]
@@ -80,7 +91,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		KEY_TAB:
 			_focus_idx = (_focus_idx + 1) % _focus_list.size()
 		KEY_N:
-			nodes.append(ManeuverNode.new(ut + 600.0))
+			# Start with a visible prograde nudge so the new node's effect on
+			# the trajectory is immediately obvious.
+			var new_node := ManeuverNode.new(ut + 600.0)
+			new_node.prograde = 10.0
+			nodes.append(new_node)
 			_dirty = true
 		KEY_X:
 			var n := _last_node()
@@ -166,10 +181,9 @@ func _update_hud() -> void:
 			n.dv(), n.prograde, n.normal, n.radial, _fmt_time(maxf(n.t - ut, 0.0))]
 
 	hud.text = "MAX-Q — orbital core (Phase 1)
-UT %s   warp %.0fx [,/.]   focus: %s [Tab]   FPS %d
+UT %s   warp %.0fx   focus: %s   FPS %d
 SOI: %s   alt %.1f km   Pe %.1f km   Ap %s   period %s
-node: %s
-[N] node  [U/J] prograde  [I/K] normal  [O/L] radial  (Shift=10x)  [X] delete" % [
+node: %s" % [
 		_fmt_time(ut), WARP_LEVELS[warp_idx], _focus_name(),
 		Engine.get_frames_per_second(),
 		vessel.parent.body_name, vessel.altitude() / 1000.0,

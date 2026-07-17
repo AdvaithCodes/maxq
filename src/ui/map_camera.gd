@@ -6,7 +6,7 @@ extends Camera3D
 
 var yaw := 0.6
 var pitch := -0.9
-var dist := 0.4  # scene units (1 unit = 10,000 km at MAP_SCALE 1e-7)
+var dist := 0.22  # scene units (1 unit = 10,000 km); frames the starting orbit
 
 var _dragging := false
 
