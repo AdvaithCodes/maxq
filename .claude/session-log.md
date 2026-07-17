@@ -6,8 +6,15 @@ All foundational decisions made and recorded in `docs/adr.md`:
   double-precision orbital math; GDScript with C#/GDExtension hot paths.
 - ADR-002: full-3D KSP-like scope, phased roadmap (plan §5).
 - ADR-003: stylized low-poly art + rich lighting/atmosphere shaders.
-No code written yet. Public repo: https://github.com/AdvaithCodes/maxq
+Public repo: https://github.com/AdvaithCodes/maxq
 (working title "Max-Q"; local folder is still ~/code/rockets).
+
+Phase 0 spikes BUILT (2026-07-17), all headless checks pass on the M4
+(Godot 4.7.1 installed at ~/Applications/Godot.app, no admin needed):
+- S1 orbit/floating-origin: all math tests pass (see spikes/README.md).
+- S2 planet LOD: builds/benches clean; needs VISUAL run for fps/cracks/jitter.
+- S3 Jolt stack: passes with welded-stage design; joint-chain design buckles
+  (recorded in learnings — will become an ADR in Phase 2).
 Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good."
 
 ## Last completed (2026-07-16)
@@ -21,10 +28,12 @@ Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good.
 - Created `docs/plan.md`, this file, `.claude/learnings.md`.
 
 ## Next steps
-1. Get owner answers to plan §6; record final stack choice as ADR in `docs/adr.md`.
-2. `git init`, install Godot 4.6.x stable on the M4 Air.
-3. Phase 0 feasibility spikes (plan §5): floating-origin orbit demo, quadtree LOD
-   planet, Jolt parts toy — then go/no-go perf check on the Intel machines.
+1. Owner runs S1 + S2 visually on the M4 (fps, cracks, jitter at warp), then
+   all three spikes on the Dell / Intel MBP → gate G0 go/no-go.
+2. After G0: create the real Godot project at repo root; start Phase 1
+   (orbital core: time system, body hierarchy from data files, map view,
+   maneuver nodes) — see docs/roadmap.md.
+3. Phase 2 ADR to write when reached: welded vessel assemblies (from S3).
 
 ## Known/open issues
 - None yet (no code). Key risks are recorded as limitations in plan §4 and

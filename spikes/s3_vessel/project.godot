@@ -1,0 +1,22 @@
+config_version=5
+
+[application]
+
+config/name="MaxQ Spike S3 - Vessel Physics (Jolt)"
+run/main_scene="res://test_stack.tscn"
+
+[display]
+
+window/size/viewport_width=1280
+window/size/viewport_height=720
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+jolt_physics_3d/simulation/velocity_steps=20
+jolt_physics_3d/simulation/position_steps=8
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"

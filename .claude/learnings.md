@@ -21,3 +21,26 @@ Gotchas and corrected assumptions. Read early each session; don't re-learn these
   craft — KSP's 2.25 km bubble is the genre-proven pattern (Krakensbane).
 - **KSP2 died from scope, not tech alone.** Any "wouldn't it be cool if" feature
   (multiplayer, interstellar, colonies) is out until the Phase 2 vertical slice ships.
+
+## From building the Phase 0 spikes (2026-07-17)
+
+- **GDScript has no `%e` format specifier** — it errors at runtime ("unsupported
+  format character") but the surrounding code keeps going. Use
+  `String.num_scientific()` for scientific notation.
+- **Plain Newton fails on the universal Kepler equation for hyperbolic orbits** —
+  two distinct failure modes: NaN from `exp()` overflow in Stumpff functions far
+  from the root, and "creep" (F grows exponentially, so Newton advances in
+  fixed-size steps and exhausts iterations). Fix: bracketed rtsafe-style Newton
+  (F is monotonic; map non-finite F to signed INF). Symptom if it regresses:
+  vessel teleports to absurd coordinates right at high time-warp or SOI entry.
+- **The noodle rocket is real and unfixable with joint chains** (S3, measured):
+  49 chained Jolt joints buckle 166–175° under thrust even with velocity_steps=20,
+  position_steps=8. Welding parts into per-stage compound rigid bodies (joints
+  only at decouplers) passes with 0.6° tilt at 1 ms/frame. Also: attached
+  assemblies need `add_collision_exception_with` or contacts fight the joints.
+- **Quadtree LOD must memoize chunk centers** — recomputing them each frame
+  means noise samples + allocations for every visited node and dominated the
+  steady-state cost (4.65 → 2.69 ms/frame after caching). Also gate the whole
+  LOD pass on camera movement.
+- **Godot 4 `.gitignore` must NOT ignore `*.import`** (that's Godot 3 advice);
+  the sidecar `.import` files must be committed or imports break on clone.
