@@ -1,4 +1,4 @@
-# Rockets (working title)
+# Max-Q (working title)
 
 A Kerbal Space Program–style game: build rockets from parts, launch them under real
 physics, fly patched-conic orbital mechanics around a fictional solar system, and land
