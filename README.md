@@ -20,5 +20,10 @@ on other bodies.
 
 ## Status
 
-Pre-code. Next: Phase 0 feasibility spikes (floating-origin orbit demo, quadtree LOD
-planet, Jolt parts toy) — see `docs/plan.md` §5.
+**Phase 1 (orbital core) in progress.** The root project is a playable orbital
+sim: data-driven star system (`data/system.json`), on-rails patched-conics
+vessel, time warp to 1,000,000x, map view with trajectory prediction across
+SOI changes, and maneuver nodes. Run it: open this folder in Godot 4.7+ and
+press play. Tests: `godot --headless --path . --script res://tests/test_sim.gd`.
+
+Phase 0 spikes (kept for reference): `spikes/` — gate G0 passed on the M4.

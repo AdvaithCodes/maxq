@@ -1,0 +1,51 @@
+{
+  "comment": "Max-Q home system. Scales inspired by KSP's Kerbol system: small, dense bodies so orbital mechanics is playable without day-long burns.",
+  "bodies": [
+    {
+      "name": "Helion",
+      "mu": 1.1723328e18,
+      "radius": 2.616e8,
+      "color": [1.0, 0.82, 0.35]
+    },
+    {
+      "name": "Cindra",
+      "parent": "Helion",
+      "mu": 1.6860938e11,
+      "radius": 2.5e5,
+      "color": [0.75, 0.62, 0.5],
+      "orbit": { "a": 5.2632e9, "e": 0.09, "inc_deg": 5.0, "m0_deg": 140.0 }
+    },
+    {
+      "name": "Veridia",
+      "parent": "Helion",
+      "mu": 3.5316e12,
+      "radius": 6.0e5,
+      "color": [0.35, 0.62, 0.85],
+      "orbit": { "a": 1.3599840256e10, "e": 0.0, "m0_deg": 0.0 }
+    },
+    {
+      "name": "Cinder",
+      "parent": "Veridia",
+      "mu": 6.5138398e10,
+      "radius": 2.0e5,
+      "color": [0.66, 0.64, 0.62],
+      "orbit": { "a": 1.2e7, "e": 0.0, "m0_deg": 110.0 }
+    },
+    {
+      "name": "Thessa",
+      "parent": "Veridia",
+      "mu": 1.7658e9,
+      "radius": 6.0e4,
+      "color": [0.72, 0.9, 0.85],
+      "orbit": { "a": 4.7e7, "e": 0.0, "inc_deg": 6.0, "m0_deg": 40.0 }
+    },
+    {
+      "name": "Rusk",
+      "parent": "Helion",
+      "mu": 3.0136321e11,
+      "radius": 3.2e5,
+      "color": [0.85, 0.45, 0.3],
+      "orbit": { "a": 2.0726155e10, "e": 0.051, "inc_deg": 0.06, "m0_deg": 270.0 }
+    }
+  ]
+}

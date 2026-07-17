@@ -28,12 +28,25 @@ Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good.
 - Created `docs/plan.md`, this file, `.claude/learnings.md`.
 
 ## Next steps
-1. Owner runs S1 + S2 visually on the M4 (fps, cracks, jitter at warp), then
-   all three spikes on the Dell / Intel MBP → gate G0 go/no-go.
-2. After G0: create the real Godot project at repo root; start Phase 1
-   (orbital core: time system, body hierarchy from data files, map view,
-   maneuver nodes) — see docs/roadmap.md.
-3. Phase 2 ADR to write when reached: welded vessel assemblies (from S3).
+1. Owner playtests Phase 1 map view (root project) on the M4; feedback loop.
+2. Toward M1 (v0.1 tag): polish node editing (drag handles later), consider
+   auto warp-down approaching nodes/SOI, closest-approach markers.
+3. Phase 2 (VAB + physics flight) after M1. ADR to write then: welded vessel
+   assemblies (from S3 finding).
+4. Dell run of spikes still pending (reduced-preset check, not a gate anymore).
+
+## Phase 1 status (2026-07-17)
+Root project = orbital core, all 15 sim tests pass headless:
+- src/core: DVec3, Kepler (universal-variable propagator + orbit_info).
+- src/sim: OrbitElements (full Keplerian, Y-up), CelestialBody hierarchy,
+  Universe (loads data/system.json — star Helion, home planet Veridia,
+  moons Cinder/Thessa, planets Cindra/Rusk), Vessel (generalized SOI walk,
+  node execution), Trajectory (patched-conics predictor, KSP-style
+  parent-relative patch rendering), ManeuverNode.
+- src/ui: MapCamera (orbit rig), OrbitRenderer (focus-relative, doubles).
+- main.gd: warp ladder to 1e6, Tab focus cycle, node editing keys.
+- Known minor: CelestialBody parent<->children RefCounted cycle leaks at
+  exit (benign, single universe; fix with weakref someday).
 
 ## Known/open issues
 - None yet (no code). Key risks are recorded as limitations in plan §4 and
