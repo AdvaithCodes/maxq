@@ -28,21 +28,27 @@ Owner benchmark: "if we get something like KSA / Juno: New Origins, we are good.
 - Created `docs/plan.md`, this file, `.claude/learnings.md`.
 
 ## Next steps (START HERE next session)
-Phase 2 in progress. Done so far: part catalog (data/parts.json, 9 parts),
-Craft data model (src/craft/) with staging/assembly split per ADR-004,
-delta-v + TWR analysis, save/load roundtrip — 14 tests in tests/test_craft.gd.
+Phase 2 VERTICAL SLICE IS PLAYABLE (2026-07-17): VAB -> launch -> fly ->
+pack-to-rails -> map view. Full loop: vab.tscn is the main scene; build a
+rocket (or "Load default test rocket"), LAUNCH, Space to ignite, fly to
+71 km, auto-transition to map. Headless flight autotest:
+  godot --headless --fixed-fps 240 --path . res://flight.tscn -- --autotest
 
-Build order for the rest of Phase 2 (see docs/roadmap.md Phase 2):
-1. VAB scene (vab.tscn): part catalog list UI, click to stack parts, staging
-   list display, live dv/TWR readout (Craft.stage_deltav/launch_twr are done,
-   just call them). Save craft JSON to user://crafts/.
-2. FlightAssembly: Craft.assemblies() -> welded RigidBody3D per group
-   (compound cylinder shapes from part height/diameter, summed mass), joints
-   at decouplers, collision exceptions (pattern proven in spikes/s3_vessel).
-3. Launch scene: flat pad first (planet terrain comes Phase 3), gravity from
-   Veridia body data, engine thrust + fuel drain (isp from parts), staging
-   key, simple drag. Then: pack to rails when above atmosphere (reuse Vessel).
-4. Navball + flight HUD after that.
+Done this session: GameState autoload + scene flow; FlightAssembly (welded
+groups per ADR-004, staging, thrust/fuel); flight.gd (central gravity,
+Krakensbane w/ origin integration, exp-atmosphere drag, SAS damping, WASD/QE
+attitude, throttle, parachute stub, pack-to-rails); VAB (catalog UI, stack
+building, live dv/TWR, save/load user://crafts/, launch); map accepts packed
+vessel; 45 unit checks + flight autotest green.
+
+Remaining for M2 (v0.2):
+1. Owner playtest of the full loop -> fix feel issues (SAS strength, camera,
+   drag tuning). SAS is rate-damping only; consider attitude-hold.
+2. Navball (the genre's soul — deserves real effort).
+3. Landing/splashdown + recovery flow (parachute logic is minimal; no
+   surface collision away from pad — needs at least a sea-level kill plane).
+4. Reentry from map view back to flight scene (currently one-way to rails).
+5. Craft file-browser in VAB (currently load-by-name only).
 
 ## Milestones
 - v0.1 tagged 2026-07-17: M1 orbital core (owner flew Cinder encounter).

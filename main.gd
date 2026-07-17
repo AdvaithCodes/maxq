@@ -42,8 +42,15 @@ var _warp_limited := false
 
 func _ready() -> void:
 	universe = Universe.load_from_json("res://data/system.json")
-	vessel = Vessel.new(universe, universe.by_name["Veridia"])
-	vessel.set_circular_orbit(100_000.0)
+	if not GameState.pending_vessel.is_empty():
+		# Arriving from the flight scene: adopt the packed-to-rails state.
+		var pv: Dictionary = GameState.pending_vessel
+		GameState.pending_vessel = {}
+		vessel = Vessel.new(universe, universe.by_name[pv["parent"]])
+		vessel.set_state(pv["r"], pv["v"])
+	else:
+		vessel = Vessel.new(universe, universe.by_name["Veridia"])
+		vessel.set_circular_orbit(100_000.0)
 
 	renderer = OrbitRenderer.new()
 	renderer.setup(universe)
@@ -70,7 +77,7 @@ func _ready() -> void:
 	controls.modulate = Color(1.0, 1.0, 1.0, 0.85)
 	controls.text = "[,/.] time warp    [Tab] focus    [N] add node    [X] delete node    [Z] warp to node
 [U/J] prograde +/-    [I/K] normal +/-    [O/L] radial +/-    [Y/H] node later/earlier    (Shift = 10x)
-mouse drag = rotate    wheel = zoom    [Esc] quit"
+mouse drag = rotate    wheel = zoom    [B] VAB    [Esc] quit"
 	controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	controls.position = Vector2(14, -110)
 	controls.grow_vertical = Control.GROW_DIRECTION_BEGIN
@@ -134,6 +141,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			_adjust_node(0.0, 0.0, step)
 		KEY_L:
 			_adjust_node(0.0, 0.0, -step)
+		KEY_B:
+			get_tree().change_scene_to_file("res://vab.tscn")
 		KEY_ESCAPE:
 			get_tree().quit()
 

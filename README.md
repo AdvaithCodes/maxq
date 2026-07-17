@@ -20,10 +20,12 @@ on other bodies.
 
 ## Status
 
-**Phase 1 (orbital core) in progress.** The root project is a playable orbital
-sim: data-driven star system (`data/system.json`), on-rails patched-conics
-vessel, time warp to 1,000,000x, map view with trajectory prediction across
-SOI changes, and maneuver nodes. Run it: open this folder in Godot 4.7+ and
-press play. Tests: `godot --headless --path . --script res://tests/test_sim.gd`.
+**Phase 2 vertical slice playable**: build a rocket in the VAB, launch it
+under real central gravity + drag (welded-assembly Jolt physics, floating
+origin), stage, climb above the atmosphere, and hand off to the on-rails map
+view with maneuver nodes and time warp. Open this folder in Godot 4.7+ and
+press play (starts in the VAB; "Load default test rocket" for a quick start).
+Tests: the three scripts in `tests/` plus
+`godot --headless --fixed-fps 240 --path . res://flight.tscn -- --autotest`.
 
 Phase 0 spikes (kept for reference): `spikes/` — gate G0 passed on the M4.

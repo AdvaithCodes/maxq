@@ -63,3 +63,21 @@ Gotchas and corrected assumptions. Read early each session; don't re-learn these
   differences at chunk borders makes lighting discontinuities (visible seams /
   odd terminator). Sample one extra vertex beyond the chunk border so edge
   normals use centered differences that match the neighbor chunk.
+
+## From building the flight scene (2026-07-17)
+
+- **Godot's project default `physics/3d/default_linear_damp` is 0.1** — hidden
+  air resistance on every rigid body that caps velocity at ~10x acceleration
+  (the rocket "flew like it was in syrup": velocity saturating, sluggish
+  regardless of thrust). Setting `body.linear_damp = 0` does NOT fix it: body
+  damp COMBINES with the project default by default. Zero the project setting
+  (or use DAMP_MODE_REPLACE).
+- **Krakensbane must integrate the origin every tick** — after a velocity
+  rebase the physics frame MOVES at frame_vel, so `origin += frame_vel * dt`
+  each physics tick. Forgetting it freezes world bookkeeping (altitude stuck,
+  gravity from stale positions) from the first rebase onward. Symptom:
+  physically impossible "level cruise" with no thrust.
+- **Never use `Engine.time_scale` to fast-forward physics tests** — it scales
+  the physics delta and distorts force integration. Use `--fixed-fps N`
+  (fixed timestep, unpaced wall clock) for faster-than-realtime headless runs.
+- macOS has no `timeout` command in zsh — don't wrap headless Godot runs in it.
