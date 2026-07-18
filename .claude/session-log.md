@@ -55,6 +55,13 @@ DONE since (2026-07-17 later): owner flew full run to orbit. Then built:
 - New headless reentry autotest: --reentry-test (falls from 60 km, chute,
   soft landing PASS). Ascent autotest + 45 unit checks green.
 
+VAB v2 (2026-07-17): catalog grouped by category with inline stats; stack
+list with selection; insert-below-selection with mid-stack splicing;
+delete-anywhere (Craft.insert_part/remove_part/recompute_layout, tested);
+nose parts (parachute) mount ABOVE parent now; engine-bell preview shapes;
+selected-part highlight; auto-framing camera; build warnings (no chute /
+TWR < 1.05 / dv < 3400).
+
 Remaining for M2 (v0.2 tag):
 1. Owner: fly the FULL round trip (launch -> orbit -> deorbit burn ->
    reentry -> chute -> touchdown -> recover). If good, tag v0.2.

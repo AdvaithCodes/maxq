@@ -11,25 +11,96 @@ var parts: Array = []
 var craft_name := "Untitled Craft"
 
 
+## A "nose" part has only a bottom attach node (parachute etc): it mounts
+## ABOVE its parent instead of below.
+static func is_nose(def: PartDef) -> bool:
+	return def.attach_top == 0.0 and def.attach_bottom != 0.0 and not def.radial
+
+
 func add_part(def: PartDef, parent_idx: int = -1) -> int:
-	var y := 0.0
-	if parent_idx >= 0:
-		var parent: Dictionary = parts[parent_idx]
-		var pdef: PartDef = parent["def"]
-		if def.radial:
-			y = parent["y"]
-		else:
-			# Stack below the parent's bottom node.
-			y = parent["y"] + pdef.attach_bottom - def.attach_top
 	var part := {
 		"def": def, "fuel": def.fuel_capacity,
-		"parent": parent_idx, "children": [], "y": y,
+		"parent": parent_idx, "children": [], "y": 0.0,
 	}
 	parts.append(part)
 	var idx := parts.size() - 1
 	if parent_idx >= 0:
 		parts[parent_idx]["children"].append(idx)
+	recompute_layout()
 	return idx
+
+
+## Insert a stack part directly below `parent_idx`: if the parent already has
+## a stack child, the new part is spliced between them. Radial/nose parts just
+## attach to the parent. Returns the new part's index.
+func insert_part(def: PartDef, parent_idx: int) -> int:
+	if def.radial or is_nose(def):
+		return add_part(def, parent_idx)
+	var stack_child := stack_child_of(parent_idx)
+	var idx := add_part(def, parent_idx)
+	if stack_child >= 0:
+		parts[parent_idx]["children"].erase(stack_child)
+		parts[stack_child]["parent"] = idx
+		parts[idx]["children"].append(stack_child)
+		recompute_layout()
+	return idx
+
+
+## The child mounted below parent (non-radial, non-nose), or -1.
+func stack_child_of(idx: int) -> int:
+	for c: int in parts[idx]["children"]:
+		var cdef: PartDef = parts[c]["def"]
+		if not cdef.radial and not is_nose(cdef):
+			return c
+	return -1
+
+
+## Remove one part; its children are re-parented to its parent (stack splice).
+## Removing the root is only allowed when it is the sole part.
+func remove_part(idx: int) -> bool:
+	if idx == 0:
+		if parts.size() > 1:
+			return false
+		parts.clear()
+		return true
+	var old_parent: int = parts[idx]["parent"]
+	for p: Dictionary in parts:
+		if p["parent"] == idx:
+			p["parent"] = old_parent
+	parts.remove_at(idx)
+	# Fix indices shifted by the removal, then rebuild children lists.
+	for p: Dictionary in parts:
+		if p["parent"] > idx:
+			p["parent"] -= 1
+		p["children"] = []
+	for i in parts.size():
+		var pi: int = parts[i]["parent"]
+		if pi >= 0:
+			parts[pi]["children"].append(i)
+	recompute_layout()
+	return true
+
+
+## Recompute every part's stack y position from the tree.
+func recompute_layout() -> void:
+	if parts.is_empty():
+		return
+	parts[0]["y"] = 0.0
+	_layout_children(0)
+
+
+func _layout_children(idx: int) -> void:
+	var p: Dictionary = parts[idx]
+	var pdef: PartDef = p["def"]
+	for c: int in p["children"]:
+		var cdef: PartDef = parts[c]["def"]
+		if cdef.radial:
+			parts[c]["y"] = p["y"]
+		elif is_nose(cdef):
+			parts[c]["y"] = p["y"] + pdef.attach_top - cdef.attach_bottom
+		else:
+			parts[c]["y"] = p["y"] + pdef.attach_bottom - cdef.attach_top
+		_layout_children(c)
 
 
 func total_mass() -> float:

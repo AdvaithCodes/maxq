@@ -10,6 +10,7 @@ func _initialize() -> void:
 	_test_catalog()
 	_test_two_stage_rocket()
 	_test_roundtrip()
+	_test_layout_and_editing()
 
 	if _failures == 0:
 		print("\nALL TESTS PASSED")
@@ -94,3 +95,44 @@ func _test_roundtrip() -> void:
 	_check(absf(c2.total_mass() - c.total_mass()) < 1.0e-9, "mass identical")
 	_check(absf(c2.total_deltav() - c.total_deltav()) < 1.0e-9, "delta-v identical",
 			"(%.1f m/s)" % c2.total_deltav())
+
+
+func _test_layout_and_editing() -> void:
+	print("\n[layout, insert, remove]")
+	var cat := PartDef.load_catalog()
+	var c := Craft.new()
+	var pod := c.add_part(cat["pod_mk1"])
+	var chute := c.add_part(cat["parachute_mk1"], pod)
+	var tank := c.add_part(cat["tank_s"], pod)
+	var engine := c.add_part(cat["engine_sparrow"], tank)
+
+	# Nose part mounts ABOVE the pod (pod top 0.8 + chute half-ish offset).
+	_check(c.parts[chute]["y"] > c.parts[pod]["y"], "parachute sits above pod",
+			"(y=%.2f)" % c.parts[chute]["y"])
+	_check(c.parts[tank]["y"] < 0.0 and c.parts[engine]["y"] < c.parts[tank]["y"],
+			"stack descends below pod")
+
+	# Insert a second tank between pod and tank_s: splice.
+	var mid := c.insert_part(cat["tank_m"], pod)
+	_check(c.parts[tank]["parent"] == mid, "existing tank re-parented to inserted",
+			"(parent %d)" % c.parts[tank]["parent"])
+	_check(c.parts[mid]["parent"] == pod, "inserted parent is pod")
+	_check(c.parts[tank]["y"] < c.parts[mid]["y"], "layout recomputed after insert")
+	var mass_before: float = c.total_mass()
+
+	# Remove the inserted tank: splice back, mass restored.
+	_check(c.remove_part(mid), "remove succeeds")
+	_check(absf(c.total_mass() - (mass_before - 4500.0)) < 0.01,
+			"mass restored after remove", "(%.0f kg)" % c.total_mass())
+	# Indices shifted: find tank_s again by def id and check its parent is pod.
+	var ok_parent := false
+	for i in c.parts.size():
+		if (c.parts[i]["def"] as PartDef).id == "tank_s":
+			ok_parent = c.parts[i]["parent"] == 0
+	_check(ok_parent, "stack spliced back to pod after remove")
+	_check(not c.remove_part(0), "root pod refuses removal while stack exists")
+
+	# Assemblies/dv still sane after edits.
+	_check(c.assemblies().size() == 1, "single stage after edits")
+	_check(c.total_deltav() > 1000.0, "dv computable after edits",
+			"(%.0f m/s)" % c.total_deltav())

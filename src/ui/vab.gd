@@ -1,22 +1,31 @@
-## Vehicle Assembly Building. v1 interaction: click parts to stack them top-
-## down (first part is the root/pod), radial parts attach to the last stack
-## part. Live delta-v / TWR readout, save/load to user://crafts/, Launch.
+## Vehicle Assembly Building, v2.
+## - Catalog grouped by category; click a part to insert it BELOW the selected
+##   stack part (splicing into the middle is fine). Radial/nose parts attach
+##   directly to the selection.
+## - Stack list on the right: click to select; selected part is highlighted
+##   in the 3D preview; Delete removes it and splices the stack back together.
+## - Live per-stage delta-v/TWR breakdown + build warnings.
 extends Node3D
 
 const VERIDIA_G := 3.5316e12 / (600_000.0 * 600_000.0)
+const CATEGORY_ORDER := ["command", "utility", "fuel", "engine", "structural", "aero"]
 
 var craft: Craft
+var _selected := -1
+
 var _preview: Node3D
+var _preview_meshes: Array[MeshInstance3D] = []
 var _stats: Label
 var _name_edit: LineEdit
 var _status: Label
+var _stack_box: VBoxContainer
+var _saved_box: VBoxContainer
 
 var _cam: Camera3D
 var _cam_yaw := 0.6
 var _cam_pitch := -0.1
 var _cam_dist := 14.0
 var _dragging := false
-var _saved_box: VBoxContainer
 
 
 func _ready() -> void:
@@ -39,94 +48,109 @@ func _ready() -> void:
 	add_child(env)
 
 	_build_ui()
-	_rebuild_preview()
+	_refresh_all()
+
+
+func _btn(text: String, size: int, handler: Callable) -> Button:
+	var b := Button.new()
+	b.text = text
+	b.add_theme_font_size_override("font_size", size)
+	b.pressed.connect(handler)
+	return b
+
+
+func _header(text: String, box: Container) -> void:
+	var l := Label.new()
+	l.text = text
+	l.add_theme_font_size_override("font_size", 18)
+	l.modulate = Color(1, 1, 1, 0.7)
+	box.add_child(l)
 
 
 func _build_ui() -> void:
 	var canvas := CanvasLayer.new()
 	add_child(canvas)
 
-	# Left: part catalog.
+	# ---- Left: part catalog, grouped by category ----
 	var left := PanelContainer.new()
 	left.position = Vector2(10, 10)
+	var lscroll := ScrollContainer.new()
+	lscroll.custom_minimum_size = Vector2(280, 840)
+	left.add_child(lscroll)
 	var lbox := VBoxContainer.new()
-	left.add_child(lbox)
-	var title := Label.new()
-	title.text = "PARTS"
-	title.add_theme_font_size_override("font_size", 20)
-	lbox.add_child(title)
-	var ids := GameState.catalog.keys()
-	ids.sort()
-	for id: String in ids:
-		var def: PartDef = GameState.catalog[id]
-		var btn := Button.new()
-		btn.text = def.title
-		btn.add_theme_font_size_override("font_size", 16)
-		btn.tooltip_text = _part_tooltip(def)
-		btn.pressed.connect(_on_add_part.bind(def))
-		lbox.add_child(btn)
-	var sep := HSeparator.new()
-	lbox.add_child(sep)
-	var undo := Button.new()
-	undo.text = "Remove last part"
-	undo.add_theme_font_size_override("font_size", 16)
-	undo.pressed.connect(_on_undo)
-	lbox.add_child(undo)
-	var clear := Button.new()
-	clear.text = "Clear craft"
-	clear.add_theme_font_size_override("font_size", 16)
-	clear.pressed.connect(_on_clear)
-	lbox.add_child(clear)
-	var sep2 := HSeparator.new()
-	lbox.add_child(sep2)
-	var saved_title := Label.new()
-	saved_title.text = "SAVED CRAFT"
-	saved_title.add_theme_font_size_override("font_size", 18)
-	lbox.add_child(saved_title)
-	_saved_box = VBoxContainer.new()
-	lbox.add_child(_saved_box)
-	_refresh_saved_list()
+	lbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lscroll.add_child(lbox)
+	_header("PARTS  (click = add below selection)", lbox)
+	for cat: String in CATEGORY_ORDER:
+		var cat_parts: Array = []
+		for id: String in GameState.catalog:
+			var def: PartDef = GameState.catalog[id]
+			if def.category == cat:
+				cat_parts.append(def)
+		if cat_parts.is_empty():
+			continue
+		_header(cat.to_upper(), lbox)
+		cat_parts.sort_custom(func(a: PartDef, b: PartDef) -> bool:
+			return a.dry_mass < b.dry_mass)
+		for def: PartDef in cat_parts:
+			var b := _btn(_part_label(def), 15, _on_add_part.bind(def))
+			b.tooltip_text = _part_tooltip(def)
+			b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+			lbox.add_child(b)
 	canvas.add_child(left)
 
-	# Right: stats + actions.
+	# ---- Right: name / stack / stats / actions ----
 	var right := PanelContainer.new()
 	right.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	right.position = Vector2(-330, 10)
+	right.position = Vector2(-370, 10)
 	var rbox := VBoxContainer.new()
-	rbox.custom_minimum_size = Vector2(320, 0)
+	rbox.custom_minimum_size = Vector2(360, 0)
 	right.add_child(rbox)
+
 	_name_edit = LineEdit.new()
 	_name_edit.text = craft.craft_name
 	_name_edit.add_theme_font_size_override("font_size", 17)
 	rbox.add_child(_name_edit)
+
+	_header("STACK  (click = select)", rbox)
+	var sscroll := ScrollContainer.new()
+	sscroll.custom_minimum_size = Vector2(0, 260)
+	rbox.add_child(sscroll)
+	_stack_box = VBoxContainer.new()
+	_stack_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sscroll.add_child(_stack_box)
+
+	var hbox := HBoxContainer.new()
+	hbox.add_child(_btn("Delete selected", 15, _on_delete_selected))
+	hbox.add_child(_btn("Clear", 15, _on_clear))
+	rbox.add_child(hbox)
+
 	_stats = Label.new()
 	_stats.add_theme_font_size_override("font_size", 16)
 	rbox.add_child(_stats)
-	var save := Button.new()
-	save.text = "Save craft"
-	save.add_theme_font_size_override("font_size", 16)
-	save.pressed.connect(_on_save)
-	rbox.add_child(save)
-	var load_btn := Button.new()
-	load_btn.text = "Load craft (by name)"
-	load_btn.add_theme_font_size_override("font_size", 16)
-	load_btn.pressed.connect(_on_load)
-	rbox.add_child(load_btn)
-	var test_btn := Button.new()
-	test_btn.text = "Load default test rocket"
-	test_btn.add_theme_font_size_override("font_size", 16)
-	test_btn.pressed.connect(_on_default)
-	rbox.add_child(test_btn)
-	var launch := Button.new()
-	launch.text = "LAUNCH"
-	launch.add_theme_font_size_override("font_size", 24)
-	launch.pressed.connect(_on_launch)
+
+	rbox.add_child(_btn("Save craft", 16, _on_save))
+	rbox.add_child(_btn("Load default test rocket", 16, _on_default))
+	var launch := _btn("LAUNCH", 24, _on_launch)
 	rbox.add_child(launch)
 	_status = Label.new()
 	_status.add_theme_font_size_override("font_size", 15)
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	rbox.add_child(_status)
+
+	_header("SAVED CRAFT", rbox)
+	_saved_box = VBoxContainer.new()
+	rbox.add_child(_saved_box)
+	_refresh_saved_list()
 	canvas.add_child(right)
+
+
+func _part_label(def: PartDef) -> String:
+	if def.is_engine():
+		return "%s  %.0f kN" % [def.title, def.engine["thrust"] / 1000.0]
+	if def.fuel_capacity > 0.0:
+		return "%s  %.0f t fuel" % [def.title, def.fuel_capacity / 1000.0]
+	return def.title
 
 
 func _part_tooltip(def: PartDef) -> String:
@@ -135,12 +159,15 @@ func _part_tooltip(def: PartDef) -> String:
 		s += "  +%.0f kg fuel" % def.fuel_capacity
 	if def.is_engine():
 		s += "\nthrust %.0f kN  isp %.0f s" % [def.engine["thrust"] / 1000.0, def.engine["isp"]]
+	if def.decoupler:
+		s += "\nstage separator"
 	return s
 
 
 func _last_stack_index() -> int:
 	for i in range(craft.parts.size() - 1, -1, -1):
-		if not (craft.parts[i]["def"] as PartDef).radial:
+		var d: PartDef = craft.parts[i]["def"]
+		if not d.radial and not Craft.is_nose(d):
 			return i
 	return -1
 
@@ -150,33 +177,38 @@ func _on_add_part(def: PartDef) -> void:
 		if def.category != "command":
 			_status.text = "start with a command pod"
 			return
-		craft.add_part(def)
+		_selected = craft.add_part(def)
 	else:
-		craft.add_part(def, _last_stack_index())
-	_rebuild_preview()
+		var parent := _selected if _selected >= 0 and _selected < craft.parts.size() \
+				else _last_stack_index()
+		_selected = craft.insert_part(def, parent)
+	_refresh_all()
 
 
-func _on_undo() -> void:
-	if craft.parts.is_empty():
+func _on_delete_selected() -> void:
+	if _selected < 0 or _selected >= craft.parts.size():
+		_status.text = "select a part in the stack list first"
 		return
-	var last: int = craft.parts.size() - 1
-	var parent_idx: int = craft.parts[last]["parent"]
-	if parent_idx >= 0:
-		craft.parts[parent_idx]["children"].erase(last)
-	craft.parts.remove_at(last)
-	_rebuild_preview()
+	var parent: int = craft.parts[_selected]["parent"]
+	if not craft.remove_part(_selected):
+		_status.text = "remove the rest of the stack before the pod"
+		return
+	_selected = clampi(parent, -1, craft.parts.size() - 1)
+	_refresh_all()
 
 
 func _on_clear() -> void:
 	craft = Craft.new()
 	craft.craft_name = _name_edit.text
-	_rebuild_preview()
+	_selected = -1
+	_refresh_all()
 
 
 func _on_default() -> void:
 	craft = GameState.default_craft()
 	_name_edit.text = craft.craft_name
-	_rebuild_preview()
+	_selected = -1
+	_refresh_all()
 
 
 func _craft_path() -> String:
@@ -202,11 +234,8 @@ func _refresh_saved_list() -> void:
 	for file: String in dir.get_files():
 		if not file.ends_with(".json"):
 			continue
-		var btn := Button.new()
-		btn.text = file.trim_suffix(".json")
-		btn.add_theme_font_size_override("font_size", 15)
-		btn.pressed.connect(_load_file.bind(file))
-		_saved_box.add_child(btn)
+		var b := _btn(file.trim_suffix(".json"), 15, _load_file.bind(file))
+		_saved_box.add_child(b)
 
 
 func _load_file(file: String) -> void:
@@ -214,18 +243,8 @@ func _load_file(file: String) -> void:
 	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	craft = Craft.from_dict(data, GameState.catalog)
 	_name_edit.text = craft.craft_name
-	_rebuild_preview()
-	_status.text = "loaded " + craft.craft_name
-
-
-func _on_load() -> void:
-	if not FileAccess.file_exists(_craft_path()):
-		_status.text = "no such craft: " + _craft_path()
-		return
-	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(_craft_path()))
-	craft = Craft.from_dict(data, GameState.catalog)
-	_name_edit.text = craft.craft_name
-	_rebuild_preview()
+	_selected = -1
+	_refresh_all()
 	_status.text = "loaded " + craft.craft_name
 
 
@@ -242,23 +261,86 @@ func _on_launch() -> void:
 	get_tree().change_scene_to_file("res://flight.tscn")
 
 
+## ---- refresh: stack list, preview, stats ----
+
+func _refresh_all() -> void:
+	_refresh_stack_list()
+	_rebuild_preview()
+	_update_stats()
+
+
+func _refresh_stack_list() -> void:
+	for c in _stack_box.get_children():
+		c.queue_free()
+	# Display in visual order: top of rocket first.
+	var order: Array = range(craft.parts.size())
+	order.sort_custom(func(a: int, b: int) -> bool:
+		return craft.parts[a]["y"] > craft.parts[b]["y"])
+	for i: int in order:
+		var def: PartDef = craft.parts[i]["def"]
+		var prefix := ""
+		if def.radial:
+			prefix = "  + "
+		elif Craft.is_nose(def):
+			prefix = "  ^ "
+		var b := Button.new()
+		b.toggle_mode = true
+		b.button_pressed = (i == _selected)
+		b.text = prefix + def.title
+		b.add_theme_font_size_override("font_size", 15)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.pressed.connect(_on_select.bind(i))
+		_stack_box.add_child(b)
+
+
+func _on_select(idx: int) -> void:
+	_selected = idx
+	_refresh_stack_list()
+	_rebuild_preview()
+
+
 func _rebuild_preview() -> void:
 	for c in _preview.get_children():
 		c.queue_free()
-	for p: Dictionary in craft.parts:
+	_preview_meshes.clear()
+	for i in craft.parts.size():
+		var p: Dictionary = craft.parts[i]
 		var def: PartDef = p["def"]
 		var mesh := CylinderMesh.new()
 		mesh.height = def.height
-		mesh.top_radius = def.diameter * 0.5
-		mesh.bottom_radius = def.diameter * 0.5
+		if def.is_engine():
+			# Engine bell: narrow at top, flared at the nozzle.
+			mesh.top_radius = def.diameter * 0.3
+			mesh.bottom_radius = def.diameter * 0.5
+		else:
+			mesh.top_radius = def.diameter * 0.5
+			mesh.bottom_radius = def.diameter * 0.5
 		var mi := MeshInstance3D.new()
 		mi.mesh = mesh
 		var mat := StandardMaterial3D.new()
 		mat.albedo_color = FlightAssembly.CATEGORY_COLORS.get(def.category, Color.WHITE)
+		if i == _selected:
+			mat.emission_enabled = true
+			mat.emission = Color(0.9, 0.75, 0.1)
+			mat.emission_energy_multiplier = 0.6
 		mi.material_override = mat
 		mi.position = Vector3(0.75 if def.radial else 0.0, p["y"], 0.0)
 		_preview.add_child(mi)
-	_update_stats()
+		_preview_meshes.append(mi)
+	_auto_frame()
+
+
+func _auto_frame() -> void:
+	if craft.parts.is_empty():
+		_cam_dist = 14.0
+		return
+	var lo := INF
+	var hi := -INF
+	for p: Dictionary in craft.parts:
+		var def: PartDef = p["def"]
+		lo = minf(lo, p["y"] - def.height * 0.5)
+		hi = maxf(hi, p["y"] + def.height * 0.5)
+	_cam_dist = clampf((hi - lo) * 1.5 + 4.0, 8.0, 60.0)
 
 
 func _update_stats() -> void:
@@ -269,14 +351,31 @@ func _update_stats() -> void:
 	lines.append("")
 	lines.append("parts: %d    mass: %.1f t" % [craft.parts.size(), craft.total_mass() / 1000.0])
 	var stages := craft.stage_deltav()
+	var groups := craft.assemblies()
 	for i in stages.size():
 		var s: Dictionary = stages[i]
 		var twr: float = (s["thrust"] / (s["mass"] * VERIDIA_G)) if s.has("thrust") else 0.0
-		lines.append("stage %d:  dv %4.0f m/s   TWR %.2f" % [i + 1, s["dv"], twr])
+		lines.append("stage %d (%d parts):  dv %4.0f m/s   TWR %.2f" % [
+			i + 1, groups[i].size(), s["dv"], twr])
 	lines.append("total dv: %.0f m/s" % craft.total_deltav())
+	# Build warnings.
+	var has_chute := false
+	for p: Dictionary in craft.parts:
+		if not (p["def"] as PartDef).parachute.is_empty():
+			has_chute = true
+	if not has_chute:
+		lines.append("! no parachute — landing will be exciting")
+	if not stages.is_empty() and stages[0].has("thrust"):
+		var twr0: float = stages[0]["thrust"] / (stages[0]["mass"] * VERIDIA_G)
+		if twr0 < 1.05:
+			lines.append("! launch TWR < 1.05 — it will not lift off")
+	if craft.total_deltav() < 3400.0:
+		lines.append("! < 3400 m/s dv — orbit is unlikely")
 	lines.append("")
 	_stats.text = "\n".join(lines)
 
+
+## ---- camera ----
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
@@ -297,7 +396,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _process(_delta: float) -> void:
-	# Orbit the middle of the stack.
 	var mid_y := 0.0
 	if not craft.parts.is_empty():
 		var lo := INF
