@@ -38,6 +38,15 @@ var _cam_pitch := -0.15
 var _cam_dist := 25.0
 var _dragging := false
 var hud: Label
+var navball: Navball
+
+## Below GROUND_ZONE_ALT the frame is pinned to the planet (frame_vel folded
+## into body velocities) so a static ground surface is valid.
+const GROUND_ZONE_ALT := 4000.0
+var _ground_zone := false
+var _landed := false
+var _crashed := false
+var _still_time := 0.0
 
 
 func _ready() -> void:
@@ -47,25 +56,35 @@ func _ready() -> void:
 
 	fa = FlightAssembly.new()
 	fa.build(craft, self)
-	origin = DVec3.new(0.0, planet.radius, 0.0)
-	frame_vel = DVec3.new()
 
-	_ground = StaticBody3D.new()
-	var gshape := CollisionShape3D.new()
-	var gbox := BoxShape3D.new()
-	gbox.size = Vector3(300, 2, 300)
-	gshape.shape = gbox
-	_ground.add_child(gshape)
-	var gmesh := MeshInstance3D.new()
-	var gm := BoxMesh.new()
-	gm.size = Vector3(300, 2, 300)
-	gmesh.mesh = gm
-	var gmat := StandardMaterial3D.new()
-	gmat.albedo_color = Color(0.35, 0.4, 0.3)
-	gmesh.material_override = gmat
-	_ground.add_child(gmesh)
-	_ground.position = Vector3(0, -1, 0)
-	add_child(_ground)
+	# Headless reentry test: fabricate a mid-air state (upper stage only,
+	# chute armed, falling with horizontal velocity) and expect a soft landing.
+	_reentry_test = "--reentry-test" in OS.get_cmdline_user_args()
+	if _reentry_test:
+		GameState.flight_snapshot = {
+			"fuel": [0.0, 400.0], "stage": 1,
+			"ignited": [false, true], "detached": [true, false],
+			"any_ignited": true, "parachute_deployed": true,
+		}
+		GameState.pending_flight_state = {
+			"r": DVec3.new(0.0, planet.radius + 60_000.0, 0.0),
+			"v": DVec3.new(900.0, -100.0, 0.0),
+		}
+
+	if not GameState.pending_flight_state.is_empty():
+		# Returning from rails (reentry): adopt orbital state mid-air.
+		var st: Dictionary = GameState.pending_flight_state
+		GameState.pending_flight_state = {}
+		if not GameState.flight_snapshot.is_empty():
+			fa.restore(GameState.flight_snapshot)
+		_spawn_from_orbit(st["r"], st["v"])
+		status_msg = "reentry — good luck"
+	else:
+		# On the pad.
+		origin = DVec3.new(0.0, planet.radius, 0.0)
+		frame_vel = DVec3.new()
+		_ground_zone = true
+		_make_ground(Vector3(0, -1, 0), Basis.IDENTITY)
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-45, 30, 0)
@@ -94,17 +113,58 @@ func _ready() -> void:
 	controls.add_theme_font_size_override("font_size", 17)
 	controls.modulate = Color(1, 1, 1, 0.85)
 	controls.text = "[Space] ignite/stage   [Shift/Ctrl] throttle   [Z/X] full/cut   [W/S A/D Q/E] attitude
-[T] SAS   [P] parachute   drag=camera   [Esc] back to VAB"
+[T] SAS   [P] parachute   [R] recover (when down)   drag=camera   [Esc] abort to VAB"
 	controls.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	controls.position = Vector2(14, -80)
 	canvas.add_child(controls)
+	navball = Navball.new()
+	navball.set_anchors_preset(Control.PRESET_CENTER_BOTTOM)
+	navball.position = Vector2(-110, -250)
+	canvas.add_child(navball)
 	add_child(canvas)
 
-	autotest = "--autotest" in OS.get_cmdline_user_args()
+	autotest = "--autotest" in OS.get_cmdline_user_args() or _reentry_test
 	if autotest:
 		# NOTE: do NOT use Engine.time_scale to fast-forward physics tests —
 		# it distorts force integration. Run with --fixed-fps 60 instead.
-		print("[autotest] flight scene up, craft: ", craft.craft_name)
+		print("[autotest] flight scene up, craft: %s%s" % [
+			craft.craft_name, " (reentry test)" if _reentry_test else ""])
+
+
+## Place the (restored) stack at the frame origin with +Y along the local
+## radial, moving at the frame velocity — i.e. exactly the rails state.
+func _spawn_from_orbit(r: DVec3, v: DVec3) -> void:
+	origin = r.copy()
+	frame_vel = v.copy()
+	var pod := fa.control_body()
+	var pod_offset := pod.position
+	var up_local := r.normalized().to_v3()
+	var rot := Quaternion(Vector3.UP, up_local)
+	for body: RigidBody3D in fa.live_bodies():
+		body.position = rot * (body.position - pod_offset)
+		body.transform.basis = Basis(rot) * body.transform.basis
+		body.linear_velocity = Vector3.ZERO
+		body.angular_velocity = Vector3.ZERO
+
+
+func _make_ground(pos: Vector3, basis: Basis) -> void:
+	_ground = StaticBody3D.new()
+	var gshape := CollisionShape3D.new()
+	var gbox := BoxShape3D.new()
+	gbox.size = Vector3(3000, 2, 3000)
+	gshape.shape = gbox
+	_ground.add_child(gshape)
+	var gmesh := MeshInstance3D.new()
+	var gm := BoxMesh.new()
+	gm.size = Vector3(3000, 2, 3000)
+	gmesh.mesh = gm
+	var gmat := StandardMaterial3D.new()
+	gmat.albedo_color = Color(0.35, 0.4, 0.3)
+	gmesh.material_override = gmat
+	_ground.add_child(gmesh)
+	_ground.position = pos
+	_ground.transform.basis = basis
+	add_child(_ground)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -134,7 +194,14 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_P:
 				fa.parachute_deployed = true
 				status_msg = "parachute armed"
+			KEY_R:
+				if _landed or _crashed:
+					GameState.flight_snapshot = {}
+					GameState.pending_flight_state = {}
+					get_tree().change_scene_to_file("res://vab.tscn")
 			KEY_ESCAPE:
+				GameState.flight_snapshot = {}
+				GameState.pending_flight_state = {}
 				get_tree().change_scene_to_file("res://vab.tscn")
 
 
@@ -161,7 +228,7 @@ func _physics_process(delta: float) -> void:
 		ctrl.apply_torque(-ctrl.angular_velocity * SAS_DAMP_PER_KG * m_ctl)
 
 	# Per-body gravity and drag (world state = origin/frame_vel + local).
-	for body: RigidBody3D in fa.bodies:
+	for body: RigidBody3D in fa.live_bodies():
 		var wp: DVec3 = origin.add(DVec3.new(body.position.x, body.position.y, body.position.z))
 		var rm := wp.length()
 		var g_acc := planet.mu / (rm * rm)
@@ -175,8 +242,10 @@ func _physics_process(delta: float) -> void:
 			if speed > 0.1:
 				var rho := RHO0 * exp(-maxf(h, 0.0) / SCALE_H)
 				var cda := CDA_BODY
+				# Chute opens below its deploy altitude once speed is survivable;
+				# the drag-force cap below doubles as the opening-shock limiter.
 				if body == fa.control_body() and fa.parachute_deployed \
-						and h < 2000.0 and speed < 300.0:
+						and h < 1500.0 and speed < 420.0:
 					cda += fa.parachute_area
 				var fdrag: float = minf(0.5 * rho * speed * speed * cda, body.mass * 400.0)
 				body.apply_central_force(-vair / speed * fdrag)
@@ -184,9 +253,59 @@ func _physics_process(delta: float) -> void:
 	fa.apply_thrust(throttle, delta)
 
 	_krakensbane(delta)
+	_update_ground_zone(delta)
 	_check_pack_to_rails()
 	if autotest:
 		_autotest_tick()
+
+
+## Near the surface the frame must be planet-static so a ground collider is
+## valid: fold frame_vel into the bodies once, keep a ground slab under the
+## pod, and detect touchdown or impact.
+func _update_ground_zone(delta: float) -> void:
+	var alt := _altitude()
+	var pod := fa.control_body()
+
+	if not _ground_zone and alt < GROUND_ZONE_ALT:
+		_ground_zone = true
+		var fv := frame_vel.to_v3()
+		for body: RigidBody3D in fa.live_bodies():
+			body.linear_velocity += fv
+		frame_vel = DVec3.new()
+	elif _ground_zone and alt > GROUND_ZONE_ALT * 1.2:
+		_ground_zone = false
+		if _ground != null:
+			_ground.queue_free()
+			_ground = null
+
+	if not _ground_zone:
+		return
+
+	var up := origin.add(DVec3.new(pod.position.x, pod.position.y, pod.position.z)) \
+			.normalized().to_v3()
+	if _ground == null:
+		_make_ground(pod.position - up * (alt + 1.0), Basis(Quaternion(Vector3.UP, up)))
+	else:
+		# Keep the slab under the pod if it drifts toward the edge.
+		var offset := pod.position - _ground.position
+		var horiz := offset - up * offset.dot(up)
+		if horiz.length() > 900.0:
+			_ground.position += horiz
+
+	# Touchdown / impact detection.
+	if _landed or _crashed:
+		return
+	var speed := pod.linear_velocity.length()
+	if alt < 60.0 and speed > 15.0:
+		_crashed = true
+		status_msg = "CRASHED — [R] to recover wreckage"
+	elif alt < 60.0 and speed < 0.6:
+		_still_time += delta
+		if _still_time > 2.0:
+			_landed = true
+			status_msg = "TOUCHDOWN! — [R] to recover"
+	else:
+		_still_time = 0.0
 
 
 ## Re-base the frame origin/velocity onto the pod so physics floats stay small.
@@ -200,24 +319,18 @@ func _krakensbane(delta: float) -> void:
 	var p := pod.position
 	if p.length() > ORIGIN_SHIFT_DIST:
 		origin = origin.add(DVec3.new(p.x, p.y, p.z))
-		for body: RigidBody3D in fa.bodies:
+		for body: RigidBody3D in fa.live_bodies():
 			body.position -= p
 		if _ground != null:
 			_ground.position -= p
-	var v := pod.linear_velocity
-	if v.length() > ORIGIN_SHIFT_VEL:
-		frame_vel = frame_vel.add(DVec3.new(v.x, v.y, v.z))
-		for body: RigidBody3D in fa.bodies:
-			body.linear_velocity -= v
-		# A static pad cannot follow a moving frame; drop it if still around.
-		if _ground != null:
-			_ground.queue_free()
-			_ground = null
-
-	# The pad only matters near the pad.
-	if _ground != null and _altitude() > 5000.0:
-		_ground.queue_free()
-		_ground = null
+	# Velocity rebase only outside the ground zone — a static ground collider
+	# is only valid while the frame is planet-static.
+	if not _ground_zone:
+		var v := pod.linear_velocity
+		if v.length() > ORIGIN_SHIFT_VEL:
+			frame_vel = frame_vel.add(DVec3.new(v.x, v.y, v.z))
+			for body: RigidBody3D in fa.live_bodies():
+				body.linear_velocity -= v
 
 
 func _altitude() -> float:
@@ -238,6 +351,7 @@ func _check_pack_to_rails() -> void:
 		return
 	var state := _pod_world_state()
 	GameState.pending_vessel = {"parent": "Veridia", "r": state[0], "v": state[1]}
+	GameState.flight_snapshot = fa.snapshot()
 	if autotest:
 		var info: Dictionary = Kepler.orbit_info(state[0], state[1], planet.mu)
 		print("[autotest] packed to rails: Pe %.0f km  Ap %s" % [
@@ -248,11 +362,27 @@ func _check_pack_to_rails() -> void:
 	get_tree().change_scene_to_file("res://main.tscn")
 
 
+## Local horizon frame at the pod: columns (east, up, north).
+func _horizon_basis() -> Basis:
+	var pod := fa.control_body()
+	var up: Vector3 = origin.add(DVec3.new(pod.position.x, pod.position.y, pod.position.z)) \
+			.normalized().to_v3()
+	var north := Vector3(0, 0, 1) - up * up.dot(Vector3(0, 0, 1))
+	if north.length() < 0.01:
+		north = Vector3(1, 0, 0) - up * up.dot(Vector3(1, 0, 0))
+	north = north.normalized()
+	var east := up.cross(north)
+	return Basis(east, up, north)
+
+
 func _process(_delta: float) -> void:
 	var pod := fa.control_body()
 	var basis := Basis.from_euler(Vector3(_cam_pitch, _cam_yaw, 0))
 	_cam.position = pod.position + basis * Vector3(0, 0, _cam_dist)
 	_cam.transform.basis = basis
+	var state := _pod_world_state()
+	navball.update_navball(pod.global_transform.basis, _horizon_basis(),
+			state[1].to_v3())
 	_update_hud()
 
 
@@ -263,36 +393,51 @@ func _update_hud() -> void:
 	var up: DVec3 = state[0].normalized()
 	var pod_up: Vector3 = fa.control_body().global_transform.basis.y
 	var pitch := 90.0 - rad_to_deg(acos(clampf(pod_up.dot(up.to_v3()), -1.0, 1.0)))
+	var hb := _horizon_basis()
+	var heading := fposmod(rad_to_deg(atan2(pod_up.dot(hb.x), pod_up.dot(hb.z))), 360.0)
 	var twr := fa.current_thrust(throttle) / (fa.attached_mass() * 9.81)
 	var ra_txt: String = "%.1f km" % ((info["ra"] - planet.radius) / 1000.0) \
 			if info["ra"] != INF else "escape"
 
+	var chute_txt := "deployed" if (fa.parachute_deployed and _altitude() < 1500.0) \
+			else ("armed" if fa.parachute_deployed else "stowed")
 	hud.text = "MAX-Q FLIGHT   T+%s   %s
-alt %.2f km   speed %.0f m/s   pitch %.0f deg
+alt %.2f km   speed %.0f m/s   pitch %.0f deg   hdg %03.0f
 Ap %s   Pe %.1f km
-throttle %3.0f%%   TWR %.2f   stage fuel %3.0f%%   SAS %s" % [
+throttle %3.0f%%   TWR %.2f   stage fuel %3.0f%%   SAS %s   chute %s" % [
 		"%d:%02d" % [int(t_flight) / 60, int(t_flight) % 60], status_msg,
-		_altitude() / 1000.0, speed, pitch,
+		_altitude() / 1000.0, speed, pitch, heading,
 		ra_txt, (info["rp"] - planet.radius) / 1000.0,
 		throttle * 100.0, twr, fa.current_stage_fuel_fraction() * 100.0,
-		"on" if sas else "off",
+		"on" if sas else "off", chute_txt,
 	]
 
 
 ## ---- headless autotest ----
 ## Run: godot --headless --fixed-fps 240 --path . res://flight.tscn -- --autotest
 var _telemetry_next := 0.0
+var _reentry_test := false
 
 
 func _autotest_tick() -> void:
 	if t_flight >= _telemetry_next:
 		_telemetry_next += 10.0
 		var state := _pod_world_state()
-		var gap: float = (fa.bodies[1].position - fa.bodies[0].position).length() \
-				if fa.bodies.size() > 1 else 0.0
-		print("[telemetry] t=%5.1f alt=%8.0f v=%6.1f up_y=%.3f gap=%.2f thr=%.1f" % [
-			t_flight, _altitude(), state[1].length(),
-			fa.bodies[0].global_transform.basis.y.y, gap, throttle])
+		print("[telemetry] t=%5.1f alt=%8.0f v=%6.1f thr=%.1f %s" % [
+			t_flight, _altitude(), state[1].length(), throttle, status_msg])
+	if _reentry_test:
+		if _landed:
+			print("[autotest] soft landing confirmed at t=%.1f" % t_flight)
+			_autotest_finish()
+		elif _crashed:
+			print("[autotest] CRASHED during reentry test")
+			_autotest_ok = false
+			_autotest_finish()
+		elif t_flight > 900.0:
+			print("[autotest] reentry TIMEOUT, alt %.0f m" % _altitude())
+			_autotest_ok = false
+			_autotest_finish()
+		return
 	if t_flight > 1.0 and not fa.any_ignited:
 		throttle = 1.0
 		print("[autotest] ignition, t=%.1f" % t_flight)

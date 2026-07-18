@@ -41,14 +41,28 @@ attitude, throttle, parachute stub, pack-to-rails); VAB (catalog UI, stack
 building, live dv/TWR, save/load user://crafts/, launch); map accepts packed
 vessel; 45 unit checks + flight autotest green.
 
-Remaining for M2 (v0.2):
-1. Owner playtest of the full loop -> fix feel issues (SAS strength, camera,
-   drag tuning). SAS is rate-damping only; consider attitude-hold.
-2. Navball (the genre's soul — deserves real effort).
-3. Landing/splashdown + recovery flow (parachute logic is minimal; no
-   surface collision away from pad — needs at least a sea-level kill plane).
-4. Reentry from map view back to flight scene (currently one-way to rails).
-5. Craft file-browser in VAB (currently load-by-name only).
+DONE since (2026-07-17 later): owner flew full run to orbit. Then built:
+- Navball (src/ui/navball.gd): shader sphere in SubViewport, prograde/
+  retrograde markers, heading readout in HUD.
+- Full mission loop closed: map hands back to flight below 68 km when a
+  flight_snapshot exists; FlightAssembly snapshot/restore carries staging/
+  fuel across rails trips; reentry spawn (_spawn_from_orbit).
+- Ground-zone landing system: below 4 km the frame is pinned planet-static
+  (frame_vel folded into bodies), dynamic ground slab tracks under the pod,
+  touchdown (<0.6 m/s for 2 s) / crash (>15 m/s) detection, [R] recover.
+- Chute: arms with P, opens < 1500 m & < 420 m/s (cap = opening shock).
+- VAB saved-craft browser.
+- New headless reentry autotest: --reentry-test (falls from 60 km, chute,
+  soft landing PASS). Ascent autotest + 45 unit checks green.
+
+Remaining for M2 (v0.2 tag):
+1. Owner: fly the FULL round trip (launch -> orbit -> deorbit burn ->
+   reentry -> chute -> touchdown -> recover). If good, tag v0.2.
+2. Feel tuning from playtest (SAS is rate-damping only; consider
+   attitude-hold; camera; control authority).
+3. Known gaps: suborbital rails flight doesn't warn before ground impact if
+   no craft snapshot (sandbox map start); no map access DURING flight (M key
+   someday); single launch site; no crash consequences beyond message.
 
 ## Milestones
 - v0.1 tagged 2026-07-17: M1 orbital core (owner flew Cinder encounter).

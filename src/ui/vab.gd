@@ -16,6 +16,7 @@ var _cam_yaw := 0.6
 var _cam_pitch := -0.1
 var _cam_dist := 14.0
 var _dragging := false
+var _saved_box: VBoxContainer
 
 
 func _ready() -> void:
@@ -76,6 +77,15 @@ func _build_ui() -> void:
 	clear.add_theme_font_size_override("font_size", 16)
 	clear.pressed.connect(_on_clear)
 	lbox.add_child(clear)
+	var sep2 := HSeparator.new()
+	lbox.add_child(sep2)
+	var saved_title := Label.new()
+	saved_title.text = "SAVED CRAFT"
+	saved_title.add_theme_font_size_override("font_size", 18)
+	lbox.add_child(saved_title)
+	_saved_box = VBoxContainer.new()
+	lbox.add_child(_saved_box)
+	_refresh_saved_list()
 	canvas.add_child(left)
 
 	# Right: stats + actions.
@@ -180,6 +190,32 @@ func _on_save() -> void:
 	f.store_string(JSON.stringify(craft.to_dict(), "  "))
 	f.close()
 	_status.text = "saved: " + _craft_path()
+	_refresh_saved_list()
+
+
+func _refresh_saved_list() -> void:
+	for c in _saved_box.get_children():
+		c.queue_free()
+	var dir := DirAccess.open("user://crafts")
+	if dir == null:
+		return
+	for file: String in dir.get_files():
+		if not file.ends_with(".json"):
+			continue
+		var btn := Button.new()
+		btn.text = file.trim_suffix(".json")
+		btn.add_theme_font_size_override("font_size", 15)
+		btn.pressed.connect(_load_file.bind(file))
+		_saved_box.add_child(btn)
+
+
+func _load_file(file: String) -> void:
+	var path := "user://crafts/" + file
+	var data: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
+	craft = Craft.from_dict(data, GameState.catalog)
+	_name_edit.text = craft.craft_name
+	_rebuild_preview()
+	_status.text = "loaded " + craft.craft_name
 
 
 func _on_load() -> void:

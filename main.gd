@@ -192,6 +192,14 @@ func _warp_limit() -> float:
 func _process(delta: float) -> void:
 	var prev_switches := vessel.soi_switch_count
 
+	# Atmosphere entry with a live craft: hand back to the flight scene.
+	if not GameState.flight_snapshot.is_empty() \
+			and vessel.parent.body_name == "Veridia" \
+			and vessel.altitude() < 68_000.0:
+		GameState.pending_flight_state = {"r": vessel.r.copy(), "v": vessel.v.copy()}
+		get_tree().change_scene_to_file("res://flight.tscn")
+		return
+
 	var limit := _warp_limit()
 	var warp: float = WARP_LEVELS[warp_idx]
 	if _warp_to > ut:

@@ -6,6 +6,11 @@ var current_craft: Craft = null       # blueprint being built / flown
 ## Set by the flight scene when packing to rails; consumed by the map scene.
 ## {parent: String, r: DVec3, v: DVec3}
 var pending_vessel: Dictionary = {}
+## Set by the map scene on atmosphere entry; consumed by the flight scene.
+## {r: DVec3, v: DVec3} (planet-centered)
+var pending_flight_state: Dictionary = {}
+## FlightAssembly.snapshot() — staging/fuel state that survives rails trips.
+var flight_snapshot: Dictionary = {}
 
 
 func _ready() -> void:

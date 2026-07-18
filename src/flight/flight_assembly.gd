@@ -174,6 +174,46 @@ func apply_thrust(throttle: float, delta: float) -> void:
 		body.mass = maxf(body.mass - dm, dry_mass[gi])
 
 
+## Serializable flight state (for pack-to-rails round trips).
+func snapshot() -> Dictionary:
+	return {
+		"fuel": fuel.duplicate(),
+		"stage": stage,
+		"ignited": ignited.duplicate(),
+		"detached": detached.duplicate(),
+		"any_ignited": any_ignited,
+		"parachute_deployed": parachute_deployed,
+	}
+
+
+## Apply a snapshot to a freshly-built assembly: detached groups' bodies are
+## removed from the world (they were left behind), spent joints freed.
+func restore(s: Dictionary) -> void:
+	fuel.assign(s["fuel"])
+	stage = s["stage"]
+	ignited.assign(s["ignited"])
+	detached.assign(s["detached"])
+	any_ignited = s["any_ignited"]
+	parachute_deployed = s["parachute_deployed"]
+	for gi in bodies.size():
+		if detached[gi]:
+			if gi < joints.size() and is_instance_valid(joints[gi]):
+				joints[gi].queue_free()
+			bodies[gi].queue_free()
+	for gi in bodies.size():
+		if not detached[gi]:
+			bodies[gi].mass = dry_mass[gi] + fuel[gi]
+
+
+## Bodies that still exist in the physics world.
+func live_bodies() -> Array[RigidBody3D]:
+	var out: Array[RigidBody3D] = []
+	for b: RigidBody3D in bodies:
+		if is_instance_valid(b) and not b.is_queued_for_deletion():
+			out.append(b)
+	return out
+
+
 func current_stage_fuel_fraction() -> float:
 	if stage >= groups.size():
 		return 0.0
